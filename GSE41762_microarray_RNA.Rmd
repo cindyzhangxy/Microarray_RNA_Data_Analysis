@@ -1,0 +1,219 @@
+---
+title: "bulk_seq_PMID33712379"
+author: "Cindy Zhang"
+date: "2023-02-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tidyverse)
+library(GEOquery)
+library(limma)
+library(edgeR)
+library(pheatmap)
+library(impute)
+```
+
+
+```{r setup, include=FALSE}
+```
+
+## Loading Data
+```{r}
+eset <- getGEO("GSE41762", getGPL = FALSE)[[1]]
+eset
+```
+##Examine MetaData
+```{r}
+
+str(pData(eset))
+#examine the first few rows and columns
+head(pData(eset)[1:3,1:5]) %>% kable(align="ccccc")
+```
+## Data Wrangling
+```{r}
+pData(eset) <- pData(eset) %>%
+  mutate(sample_id = geo_accession) %>% 
+  select("status:ch1",sample_id,"Sex:ch1", "bmi:ch1", "age:ch1") 
+colnames(pData(eset)) <- c("statu","sample_id","sex","bmi","age")
+
+pData(eset)$bmi %>% as.double()
+pData(eset)$age %>% as.double()
+
+pData(eset) <- pData(eset) %>% 
+  mutate(status = case_when(
+         grepl("Non-diabetic donor", statu) ~ "nont2d",
+         grepl("Diabetic donor", statu) ~ "t2d")) %>%
+  mutate(BMI = case_when(
+    bmi >  30 ~ "over30",
+    bmi < 30 ~ "below30"
+  )) %>% 
+  select(-c(bmi,statu))
+
+
+pData(eset) %>% 
+  with(table(status,BMI))
+
+```
+## Arrange factor levels
+```{r}
+pData(eset) <- pData(eset) %>% 
+  mutate(BMI = fct_relevel(BMI, "below30", "over30")) %>% 
+  mutate(status = as.factor(status))
+
+pData(eset)$BMI
+pData(eset)$status
+
+```
+## Do sample ID in sample metadata match the sample ID in expression matrix? 
+```{r}
+identical(colnames(exprs(eset)), pData(eset)$sample_id)
+
+```
+
+## pivot data to longer format  
+```{r}
+toLonger <- function(expressionMatrix) {
+    expressionMatrix <- longExpressionMatrix <- expressionMatrix %>% 
+    as.data.frame() %>%
+    rownames_to_column("gene") %>%
+    pivot_longer(cols = !gene, 
+                 values_to = "Expression",
+                 names_to = "sample_id") 
+  return(expressionMatrix)
+}
+
+head(toLonger(exprs(eset)),3)
+dev.off()
+
+toLonger(exprs(eset)) %>% 
+  ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(x = "sample", y = "Gene Expression")
+```
+### Check for NA in count matrix and metaData
+```{r}
+# NA in expression matrix
+sum(is.na(exprs(eset)))
+# NA in metadata
+sum(is.na(pData(eset)))
+
+a <- exprs(eset) %>% 
+  as.data.frame() %>% 
+  mutate(sum = rowSums(.)) %>% 
+  filter(sum != "NA")
+#How many columns contain NA
+expression <- exprs(eset) %>% data.frame()
+
+length(names(which(colSums(is.na(expression))>0)))
+
+#What percentage of each (sample) column contain NA?
+missing_col_percentage <- apply(expression[,which(colSums(is.na(expression))>0)], 2, function(x) sum(is.na(x))/29096)
+head(missing_col_percentage, 5)
+hist(missing_col_percentage)
+min(missing_col_percentage)
+summary(missing_col_percentage)
+
+#How many genes(rows) contain NA?
+length(names(which(rowSums(is.na(expression))>0)))
+
+#What percentage of each (gene) row contain NA?
+missing_row_percentage <- apply(expression[which(rowSums(is.na(expression))>0),], 1, function(x) sum(is.na(x))/77)
+head(missing_row_percentage,5)
+hist(missing_row_percentage)
+summary(missing_row_percentage)
+
+# Mean expression for the genes with missing values
+na_id <- as.list(names(which(rowSums(is.na(expression))>0)))
+mean_expression_na <- expression %>%
+  mutate(avg = rowMeans(.,na.rm=TRUE)) %>% 
+  rownames_to_column(var="id") %>% 
+  filter(id %in% na_id) %>% 
+  select(avg)
+mean_expression_complete <- expression %>%
+  mutate(avg = rowMeans(.,na.rm=TRUE)) %>% 
+  rownames_to_column(var="id") %>% 
+  filter(!(id %in% na_id)) %>% 
+  select(avg)
+par(mfrow=c(1,2))
+#Does the genes with missing values have a higher average experssion than genes without any missing values?
+mean(mean_expression_na$avg)
+mean(mean_expression_complete$avg)
+
+imputed <- impute.knn(as.matrix(expression),k = 10, rowmax = 0.5, colmax = 0.8, maxp = 1500, rng.seed=362436069)
+
+# check NA data removal in matrix
+sum(is.na(imputed$data))
+```
+### Combine Data
+```{r}
+# metaData
+MetaData <- pData(eset) %>% 
+  select(sample_id, status, BMI) %>% 
+  mutate(samples = sample_id) 
+
+toLongerMeta <- function(expset) {
+    stopifnot(class(expset) == "ExpressionSet")
+    expressionMatrix <- longExpressionMatrix <- imputed$data %>% 
+    as.data.frame() %>%
+    rownames_to_column("gene") %>%
+    pivot_longer(cols = !gene, 
+                 values_to = "Expression",
+                 names_to = "sample_id") %>%
+    left_join(MetaData)
+  return(expressionMatrix)
+}
+
+joint <- toLongerMeta(eset)
+head(joint, 3) %>% kable()
+identical(MetaData$sample_id, colnames(imputed$data))
+```
+#Check samples in each category
+```{r}
+table(pData(eset)$BMI, pData(eset)$status)
+```
+
+# Setting up a design matrix and fit linear model
+```{r}
+modm <- model.matrix(~BMI*status, MetaData)
+lmFitEb <- eBayes(lmFit(imputed$data, modm))
+
+```
+##Identify genes that are differentially expressed in obese vs. nonobese in healthy samples
+```{r}
+deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMI>30")
+
+```
+#Genes that are DE in obese vs. non-obese T2D samples
+```{r}
+deGenesObT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30:statust2d")
+
+```
+#Genes that are DE in obese vs. non-obese healthy samples
+```{r}
+deGenesObH <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
+
+deGenesObH %>% kable()
+
+
+```
+# Genes that are DE in T2D vs. Healthy in BMI <30 individuals
+```{r}
+deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
+
+deGenesOb %>% kable()
+dim(deGenesOb)
+```
+# Genes that are DE in T2D vs. Healthy in BMI >30 individuals
+```{r}
+deGenest2dO <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= c("BMIover30", "BMIover30:statust2d"))
+deGenest2dO
+```
+
+
+
+
+
