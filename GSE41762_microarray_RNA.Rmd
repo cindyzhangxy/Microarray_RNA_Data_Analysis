@@ -1,8 +1,8 @@
 ---
-title: "bulk_seq_PMID33712379"
+title: "MicroarrayRNAPMID33712379"
 author: "Cindy Zhang"
 date: "2023-02-19"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -20,19 +20,19 @@ library(impute)
 ```{r setup, include=FALSE}
 ```
 
-## Loading Data
+### Loading Data
 ```{r}
 eset <- getGEO("GSE41762", getGPL = FALSE)[[1]]
 eset
 ```
-##Examine MetaData
+### Examine MetaData
 ```{r}
 
 str(pData(eset))
 #examine the first few rows and columns
 head(pData(eset)[1:3,1:5]) %>% kable(align="ccccc")
 ```
-## Data Wrangling
+### Data Wrangling
 ```{r}
 pData(eset) <- pData(eset) %>%
   mutate(sample_id = geo_accession) %>% 
@@ -57,7 +57,7 @@ pData(eset) %>%
   with(table(status,BMI))
 
 ```
-## Arrange factor levels
+### Arrange factor levels
 ```{r}
 pData(eset) <- pData(eset) %>% 
   mutate(BMI = fct_relevel(BMI, "below30", "over30")) %>% 
@@ -67,13 +67,13 @@ pData(eset)$BMI
 pData(eset)$status
 
 ```
-## Do sample ID in sample metadata match the sample ID in expression matrix? 
+### Do sample ID in sample metadata match the sample ID in expression matrix? 
 ```{r}
 identical(colnames(exprs(eset)), pData(eset)$sample_id)
 
 ```
 
-## pivot data to longer format  
+### pivot data to longer format  
 ```{r}
 toLonger <- function(expressionMatrix) {
     expressionMatrix <- longExpressionMatrix <- expressionMatrix %>% 
@@ -182,17 +182,17 @@ modm <- model.matrix(~BMI*status, MetaData)
 lmFitEb <- eBayes(lmFit(imputed$data, modm))
 
 ```
-##Identify genes that are differentially expressed in obese vs. nonobese in healthy samples
+### Identify genes that are differentially expressed in obese vs. nonobese in healthy samples
 ```{r}
-deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMI>30")
+deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
 
 ```
-#Genes that are DE in obese vs. non-obese T2D samples
+### Genes that are DE in obese vs. non-obese T2D samples
 ```{r}
 deGenesObT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30:statust2d")
 
 ```
-#Genes that are DE in obese vs. non-obese healthy samples
+### Genes that are DE in obese vs. non-obese healthy samples
 ```{r}
 deGenesObH <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
 
@@ -200,14 +200,14 @@ deGenesObH %>% kable()
 
 
 ```
-# Genes that are DE in T2D vs. Healthy in BMI <30 individuals
+### Genes that are DE in T2D vs. Healthy in BMI <30 individuals
 ```{r}
 deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
 
 deGenesOb %>% kable()
 dim(deGenesOb)
 ```
-# Genes that are DE in T2D vs. Healthy in BMI >30 individuals
+### Genes that are DE in T2D vs. Healthy in BMI >30 individuals
 ```{r}
 deGenest2dO <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= c("BMIover30", "BMIover30:statust2d"))
 deGenest2dO
