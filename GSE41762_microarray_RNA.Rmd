@@ -1,5 +1,5 @@
 ---
-title: "MicroarrayRNAPMID33712379"
+title: "MicroarrayRNA"
 author: "Cindy Zhang"
 date: "2023-02-19"
 output: github_document
@@ -14,10 +14,6 @@ library(limma)
 library(edgeR)
 library(pheatmap)
 library(impute)
-```
-
-
-```{r setup, include=FALSE}
 ```
 
 ### Loading Data
@@ -72,28 +68,6 @@ pData(eset)$status
 identical(colnames(exprs(eset)), pData(eset)$sample_id)
 
 ```
-
-### pivot data to longer format  
-```{r}
-toLonger <- function(expressionMatrix) {
-    expressionMatrix <- longExpressionMatrix <- expressionMatrix %>% 
-    as.data.frame() %>%
-    rownames_to_column("gene") %>%
-    pivot_longer(cols = !gene, 
-                 values_to = "Expression",
-                 names_to = "sample_id") 
-  return(expressionMatrix)
-}
-
-head(toLonger(exprs(eset)),3)
-dev.off()
-
-toLonger(exprs(eset)) %>% 
-  ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
-  geom_boxplot() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(x = "sample", y = "Gene Expression")
-```
 ### Check for NA in count matrix and metaData
 ```{r}
 # NA in expression matrix
@@ -101,10 +75,6 @@ sum(is.na(exprs(eset)))
 # NA in metadata
 sum(is.na(pData(eset)))
 
-a <- exprs(eset) %>% 
-  as.data.frame() %>% 
-  mutate(sum = rowSums(.)) %>% 
-  filter(sum != "NA")
 #How many columns contain NA
 expression <- exprs(eset) %>% data.frame()
 
@@ -143,11 +113,12 @@ par(mfrow=c(1,2))
 mean(mean_expression_na$avg)
 mean(mean_expression_complete$avg)
 
-imputed <- impute.knn(as.matrix(expression),k = 10, rowmax = 0.5, colmax = 0.8, maxp = 1500, rng.seed=362436069)
+# Does the gene with missing values consistently show up in certain samples? 
+names(which(colSums(is.na(expression))>0))
 
-# check NA data removal in matrix
-sum(is.na(imputed$data))
+length(names(which(colSums(is.na(expression))>0)))
 ```
+* As described in [GSE41762](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE41762)The genes that contain missing data were from the replication cohort. NA results due to difference in normalization method for investigation vs. replication cohorts. Thus, genes with NA can be safely removed.
 ### Combine Data
 ```{r}
 # metaData
@@ -155,9 +126,12 @@ MetaData <- pData(eset) %>%
   select(sample_id, status, BMI) %>% 
   mutate(samples = sample_id) 
 
+#expressionData with 366 genes removed
+express <- na.omit(exprs(eset))
+
 toLongerMeta <- function(expset) {
     stopifnot(class(expset) == "ExpressionSet")
-    expressionMatrix <- longExpressionMatrix <- imputed$data %>% 
+    expressionMatrix <- longExpressionMatrix <- express %>% 
     as.data.frame() %>%
     rownames_to_column("gene") %>%
     pivot_longer(cols = !gene, 
@@ -169,17 +143,39 @@ toLongerMeta <- function(expset) {
 
 joint <- toLongerMeta(eset)
 head(joint, 3) %>% kable()
-identical(MetaData$sample_id, colnames(imputed$data))
+identical(MetaData$sample_id, colnames(express))
 ```
 #Check samples in each category
 ```{r}
 table(pData(eset)$BMI, pData(eset)$status)
 ```
+### pivot data to longer format  
+```{r}
+dim(express)
+toLonger <- function(expressionMatrix) {
+    expressionMatrix <- longExpressionMatrix <- expressionMatrix %>% 
+    as.data.frame() %>%
+    rownames_to_column("gene") %>%
+    pivot_longer(cols = !gene, 
+                 values_to = "Expression",
+                 names_to = "sample_id") 
+  return(expressionMatrix)
+}
 
+options(repr.plot.width = 30, repr.plot.height =2)
+
+toLonger(express) %>% 
+  ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(x = "sample", y = "Gene Expression") 
+
+
+```
 # Setting up a design matrix and fit linear model
 ```{r}
 modm <- model.matrix(~BMI*status, MetaData)
-lmFitEb <- eBayes(lmFit(imputed$data, modm))
+lmFitEb <- eBayes(lmFit(express, modm))
 
 ```
 ### Identify genes that are differentially expressed in obese vs. nonobese in healthy samples
@@ -198,19 +194,19 @@ deGenesObH <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05
 
 deGenesObH %>% kable()
 
-
 ```
 ### Genes that are DE in T2D vs. Healthy in BMI <30 individuals
 ```{r}
 deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
 
 deGenesOb %>% kable()
-dim(deGenesOb)
+length(deGenesOb$P.Value)
 ```
-### Genes that are DE in T2D vs. Healthy in BMI >30 individuals
+### refit model
 ```{r}
-deGenest2dO <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= c("BMIover30", "BMIover30:statust2d"))
-deGenest2dO
+
+
+
 ```
 
 

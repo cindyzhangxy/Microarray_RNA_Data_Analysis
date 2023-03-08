@@ -1,4 +1,4 @@
-MicroarrayRNAPMID33712379
+MicroarrayRNA
 ================
 Cindy Zhang
 2023-02-19
@@ -205,13 +205,6 @@ head(toLonger(exprs(eset)),3)
     ## 3 7896736 GSM1023657       5.45
 
 ``` r
-dev.off()
-```
-
-    ## null device 
-    ##           1
-
-``` r
 toLonger(exprs(eset)) %>% 
   ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
   geom_boxplot() + 
@@ -221,7 +214,8 @@ toLonger(exprs(eset)) %>%
 
     ## Warning: Removed 10495 rows containing non-finite values (`stat_boxplot()`).
 
-### Check for NA in count matrix and metaData
+![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+\### Check for NA in count matrix and metaData
 
 ``` r
 # NA in expression matrix
@@ -238,10 +232,6 @@ sum(is.na(pData(eset)))
     ## [1] 0
 
 ``` r
-a <- exprs(eset) %>% 
-  as.data.frame() %>% 
-  mutate(sum = rowSums(.)) %>% 
-  filter(sum != "NA")
 #How many columns contain NA
 expression <- exprs(eset) %>% data.frame()
 
@@ -334,109 +324,15 @@ mean(mean_expression_complete$avg)
     ## [1] 5.869807
 
 ``` r
-imputed <- impute.knn(as.matrix(expression),k = 10, rowmax = 0.5, colmax = 0.8, maxp = 1500, rng.seed=362436069)
+# Does the gene with missing values consistently show up in certain samples? 
+col_na <- names(which(colSums(is.na(expression))>0))
 ```
 
-    ## Cluster size 29096 broken into 14792 14304 
-    ## Cluster size 14792 broken into 8433 6359 
-    ## Cluster size 8433 broken into 4293 4140 
-    ## Cluster size 4293 broken into 2014 2279 
-    ## Cluster size 2014 broken into 1969 45 
-    ## Cluster size 1969 broken into 1041 928 
-    ## Done cluster 1041 
-    ## Done cluster 928 
-    ## Done cluster 1969 
-    ## Done cluster 45 
-    ## Done cluster 2014 
-    ## Cluster size 2279 broken into 1185 1094 
-    ## Done cluster 1185 
-    ## Done cluster 1094 
-    ## Done cluster 2279 
-    ## Done cluster 4293 
-    ## Cluster size 4140 broken into 1723 2417 
-    ## Cluster size 1723 broken into 1539 184 
-    ## Cluster size 1539 broken into 779 760 
-    ## Done cluster 779 
-    ## Done cluster 760 
-    ## Done cluster 1539 
-    ## Done cluster 184 
-    ## Done cluster 1723 
-    ## Cluster size 2417 broken into 1183 1234 
-    ## Done cluster 1183 
-    ## Done cluster 1234 
-    ## Done cluster 2417 
-    ## Done cluster 4140 
-    ## Done cluster 8433 
-    ## Cluster size 6359 broken into 3049 3310 
-    ## Cluster size 3049 broken into 1467 1582 
-    ## Done cluster 1467 
-    ## Cluster size 1582 broken into 752 830 
-    ## Done cluster 752 
-    ## Done cluster 830 
-    ## Done cluster 1582 
-    ## Done cluster 3049 
-    ## Cluster size 3310 broken into 1681 1629 
-    ## Cluster size 1681 broken into 59 1622 
-    ## Done cluster 59 
-    ## Cluster size 1622 broken into 902 720 
-    ## Done cluster 902 
-    ## Done cluster 720 
-    ## Done cluster 1622 
-    ## Done cluster 1681 
-    ## Cluster size 1629 broken into 874 755 
-    ## Done cluster 874 
-    ## Done cluster 755 
-    ## Done cluster 1629 
-    ## Done cluster 3310 
-    ## Done cluster 6359 
-    ## Done cluster 14792 
-    ## Cluster size 14304 broken into 9443 4861 
-    ## Cluster size 9443 broken into 4704 4739 
-    ## Cluster size 4704 broken into 2411 2293 
-    ## Cluster size 2411 broken into 1260 1151 
-    ## Done cluster 1260 
-    ## Done cluster 1151 
-    ## Done cluster 2411 
-    ## Cluster size 2293 broken into 1188 1105 
-    ## Done cluster 1188 
-    ## Done cluster 1105 
-    ## Done cluster 2293 
-    ## Done cluster 4704 
-    ## Cluster size 4739 broken into 2175 2564 
-    ## Cluster size 2175 broken into 17 2158 
-    ## Done cluster 17 
-    ## Cluster size 2158 broken into 1005 1153 
-    ## Done cluster 1005 
-    ## Done cluster 1153 
-    ## Done cluster 2158 
-    ## Done cluster 2175 
-    ## Cluster size 2564 broken into 503 2061 
-    ## Done cluster 503 
-    ## Cluster size 2061 broken into 1423 638 
-    ## Done cluster 1423 
-    ## Done cluster 638 
-    ## Done cluster 2061 
-    ## Done cluster 2564 
-    ## Done cluster 4739 
-    ## Done cluster 9443 
-    ## Cluster size 4861 broken into 3398 1463 
-    ## Cluster size 3398 broken into 1972 1426 
-    ## Cluster size 1972 broken into 1023 949 
-    ## Done cluster 1023 
-    ## Done cluster 949 
-    ## Done cluster 1972 
-    ## Done cluster 1426 
-    ## Done cluster 3398 
-    ## Done cluster 1463 
-    ## Done cluster 4861 
-    ## Done cluster 14304
-
-``` r
-# check NA data removal in matrix
-sum(is.na(imputed$data))
-```
-
-    ## [1] 0
+- As described in
+  [GSE41762](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE41762)The
+  genes that contain missing data were from the replication cohort. NA
+  results due to difference in normalization method for investigation
+  vs. replication cohorts. Thus, genes with NA can be safely removed.
 
 ### Combine Data
 
@@ -446,9 +342,12 @@ MetaData <- pData(eset) %>%
   select(sample_id, status, BMI) %>% 
   mutate(samples = sample_id) 
 
+#expressionData
+express <- na.omit(exprs(eset))
+
 toLongerMeta <- function(expset) {
     stopifnot(class(expset) == "ExpressionSet")
-    expressionMatrix <- longExpressionMatrix <- imputed$data %>% 
+    expressionMatrix <- longExpressionMatrix <- express %>% 
     as.data.frame() %>%
     rownames_to_column("gene") %>%
     pivot_longer(cols = !gene, 
@@ -474,7 +373,7 @@ head(joint, 3) %>% kable()
 | 7896736 | GSM1023657 |   5.451896 | nont2d | below30 | GSM1023657 |
 
 ``` r
-identical(MetaData$sample_id, colnames(imputed$data))
+identical(MetaData$sample_id, colnames(express))
 ```
 
     ## [1] TRUE
@@ -494,7 +393,7 @@ table(pData(eset)$BMI, pData(eset)$status)
 
 ``` r
 modm <- model.matrix(~BMI*status, MetaData)
-lmFitEb <- eBayes(lmFit(imputed$data, modm))
+lmFitEb <- eBayes(lmFit(express, modm))
 ```
 
 ### Identify genes that are differentially expressed in obese vs. nonobese in healthy samples
@@ -517,9 +416,9 @@ deGenesObH <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05
 deGenesObH %>% kable()
 ```
 
-|         |    logFC |  AveExpr |        t | P.Value | adj.P.Val |       B |
-|:--------|---------:|---------:|---------:|--------:|----------:|--------:|
-| 8105842 | 0.838843 | 3.723151 | 5.377138 |   8e-07 | 0.0227364 | 4.97035 |
+|         |    logFC |  AveExpr |       t | P.Value | adj.P.Val |        B |
+|:--------|---------:|---------:|--------:|--------:|----------:|---------:|
+| 8105842 | 0.838843 | 3.723151 | 5.38427 |   7e-07 | 0.0215372 | 5.009532 |
 
 ### Genes that are DE in T2D vs. Healthy in BMI \<30 individuals
 
@@ -531,19 +430,19 @@ deGenesOb %>% kable()
 
 |         |      logFC |  AveExpr |         t |  P.Value | adj.P.Val |        B |
 |:--------|-----------:|---------:|----------:|---------:|----------:|---------:|
-| 8126324 |  1.7876132 | 6.871139 |  5.417967 | 7.00e-07 | 0.0092697 | 5.352387 |
-| 7987405 | -0.8180883 | 6.938990 | -5.410387 | 7.00e-07 | 0.0092697 | 5.326435 |
-| 8003667 |  1.0519296 | 7.607950 |  5.266040 | 1.20e-06 | 0.0092697 | 4.834883 |
-| 8092083 | -1.1402907 | 7.542657 | -5.243662 | 1.30e-06 | 0.0092697 | 4.759145 |
-| 8169504 |  1.4197096 | 5.804192 |  5.199487 | 1.60e-06 | 0.0092697 | 4.610021 |
-| 8092081 | -0.6426602 | 5.205000 | -5.008595 | 3.40e-06 | 0.0164185 | 3.971747 |
-| 8122457 |  0.4473233 | 6.351325 |  4.730540 | 9.90e-06 | 0.0367089 | 3.061475 |
-| 7946757 | -0.2548382 | 6.529406 | -4.684519 | 1.18e-05 | 0.0367089 | 2.913232 |
-| 7930413 |  0.4717516 | 8.707440 |  4.674985 | 1.23e-05 | 0.0367089 | 2.882611 |
-| 8077270 | -0.9436999 | 6.612667 | -4.667428 | 1.26e-05 | 0.0367089 | 2.858362 |
-| 8139087 |  1.3069289 | 4.833279 |  4.638261 | 1.41e-05 | 0.0370383 | 2.764956 |
-| 8115355 | -1.1866442 | 6.787113 | -4.604315 | 1.60e-05 | 0.0370383 | 2.656619 |
-| 8098246 |  1.0475308 | 5.734678 |  4.595598 | 1.65e-05 | 0.0370383 | 2.628866 |
+| 8126324 |  1.7876132 | 6.871139 |  5.435329 | 6.00e-07 | 0.0084794 | 5.434372 |
+| 7987405 | -0.8180883 | 6.938990 | -5.424617 | 6.00e-07 | 0.0084794 | 5.397516 |
+| 8003667 |  1.0519296 | 7.607950 |  5.281525 | 1.10e-06 | 0.0084794 | 4.907905 |
+| 8092083 | -1.1402907 | 7.542657 | -5.259422 | 1.20e-06 | 0.0084794 | 4.832737 |
+| 8169504 |  1.4197096 | 5.804192 |  5.215783 | 1.50e-06 | 0.0084794 | 4.684705 |
+| 8092081 | -0.6426602 | 5.205000 | -5.020353 | 3.20e-06 | 0.0153246 | 4.028178 |
+| 8122457 |  0.4473233 | 6.351325 |  4.737638 | 9.60e-06 | 0.0344319 | 3.098696 |
+| 7930413 |  0.4717516 | 8.707440 |  4.683055 | 1.18e-05 | 0.0344319 | 2.922250 |
+| 8077270 | -0.9436999 | 6.612667 | -4.681199 | 1.19e-05 | 0.0344319 | 2.916268 |
+| 7946757 | -0.2548382 | 6.529406 | -4.674108 | 1.22e-05 | 0.0344319 | 2.893426 |
+| 8139087 |  1.3069289 | 4.833279 |  4.652862 | 1.32e-05 | 0.0344319 | 2.825087 |
+| 8115355 | -1.1866442 | 6.787113 | -4.618620 | 1.51e-05 | 0.0344319 | 2.715284 |
+| 8098246 |  1.0475308 | 5.734678 |  4.609555 | 1.56e-05 | 0.0344319 | 2.686287 |
 
 ``` r
 dim(deGenesOb)
@@ -551,11 +450,4 @@ dim(deGenesOb)
 
     ## [1] 13  6
 
-### Genes that are DE in T2D vs. Healthy in BMI \>30 individuals
-
-``` r
-deGenest2dO <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= c("BMIover30", "BMIover30:statust2d"))
-deGenest2dO
-```
-
-    ## data frame with 0 columns and 0 rows
+### refit model
