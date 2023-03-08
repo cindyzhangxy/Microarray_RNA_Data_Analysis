@@ -1,4 +1,4 @@
-MicroarrayRNA
+GSE41762 Linear Regression Analysis
 ================
 Cindy Zhang
 2023-02-19
@@ -409,6 +409,8 @@ lmFitEb <- eBayes(lmFit(express, modm))
 deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
 ```
 
+- 1 DE gene in obese vs. nonobese in healthy samples
+
 ### Genes that are DE in obese vs. non-obese T2D samples
 
 ``` r
@@ -430,9 +432,9 @@ deGenesObH %>% kable()
 ### Genes that are DE in T2D vs. Healthy in BMI \<30 individuals
 
 ``` r
-deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
+degT2dNonOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
 
-deGenesOb %>% kable()
+degT2dNonOb %>% kable()
 ```
 
 |         |      logFC |  AveExpr |         t |  P.Value | adj.P.Val |        B |
@@ -451,10 +453,33 @@ deGenesOb %>% kable()
 | 8115355 | -1.1866442 | 6.787113 | -4.618620 | 1.51e-05 | 0.0344319 | 2.715284 |
 | 8098246 |  1.0475308 | 5.734678 |  4.609555 | 1.56e-05 | 0.0344319 | 2.686287 |
 
+- 13 genes were DE in T2D vs. healthy in BMI\<30 samples
+
+### Examine the effect of BMI only on DE
+
 ``` r
-length(deGenesOb$P.Value)
+modm <- model.matrix(~BMI, MetaData)
+lmFitEb <- eBayes(lmFit(express, modm))
+
+deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
 ```
 
-    ## [1] 13
+\*One DE gene was found in BMI\>30 vs. BMI\<30 individuals
 
-### refit model
+### Examine the effect of T2D only on DE
+
+``` r
+modm <- model.matrix(~BMI, MetaData)
+lmFitEb <- eBayes(lmFit(express, modm))
+
+deGenesT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
+```
+
+One DE gene was found in T2D vs. healthy individuals
+
+### Saving relevant data for aim 2 gene enrichment analysis
+
+- Data can be loaded into Aim 2 analysis using
+  readRDS(“ObvsNonObHealthy.RDS”)
+
+saveRDS(degT2dNonOb, file = “ObvsNonObHealthy.RDS”)
