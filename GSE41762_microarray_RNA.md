@@ -181,41 +181,7 @@ identical(colnames(exprs(eset)), pData(eset)$sample_id)
 
     ## [1] TRUE
 
-### pivot data to longer format
-
-``` r
-toLonger <- function(expressionMatrix) {
-    expressionMatrix <- longExpressionMatrix <- expressionMatrix %>% 
-    as.data.frame() %>%
-    rownames_to_column("gene") %>%
-    pivot_longer(cols = !gene, 
-                 values_to = "Expression",
-                 names_to = "sample_id") 
-  return(expressionMatrix)
-}
-
-head(toLonger(exprs(eset)),3)
-```
-
-    ## # A tibble: 3 × 3
-    ##   gene    sample_id  Expression
-    ##   <chr>   <chr>           <dbl>
-    ## 1 7896736 GSM1023655       4.47
-    ## 2 7896736 GSM1023656       4.91
-    ## 3 7896736 GSM1023657       5.45
-
-``` r
-toLonger(exprs(eset)) %>% 
-  ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
-  geom_boxplot() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(x = "sample", y = "Gene Expression")
-```
-
-    ## Warning: Removed 10495 rows containing non-finite values (`stat_boxplot()`).
-
-![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
-\### Check for NA in count matrix and metaData
+### Check for NA in count matrix and metaData
 
 ``` r
 # NA in expression matrix
@@ -253,7 +219,7 @@ head(missing_col_percentage, 5)
 hist(missing_col_percentage)
 ```
 
-![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
 min(missing_col_percentage)
@@ -288,7 +254,7 @@ head(missing_row_percentage,5)
 hist(missing_row_percentage)
 ```
 
-![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
+![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
 
 ``` r
 summary(missing_row_percentage)
@@ -325,16 +291,28 @@ mean(mean_expression_complete$avg)
 
 ``` r
 # Does the gene with missing values consistently show up in certain samples? 
-col_na <- names(which(colSums(is.na(expression))>0))
+names(which(colSums(is.na(expression))>0))
 ```
+
+    ##  [1] "GSM1023703" "GSM1023704" "GSM1023705" "GSM1023706" "GSM1023707"
+    ##  [6] "GSM1023708" "GSM1023709" "GSM1023710" "GSM1023711" "GSM1023712"
+    ## [11] "GSM1023713" "GSM1023714" "GSM1023715" "GSM1023716" "GSM1023717"
+    ## [16] "GSM1023718" "GSM1023719" "GSM1023720" "GSM1023721" "GSM1023722"
+    ## [21] "GSM1023723" "GSM1023724" "GSM1023725" "GSM1023726" "GSM1023727"
+    ## [26] "GSM1023728" "GSM1023729" "GSM1023730" "GSM1023731"
+
+``` r
+length(names(which(colSums(is.na(expression))>0)))
+```
+
+    ## [1] 29
 
 - As described in
   [GSE41762](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE41762)The
   genes that contain missing data were from the replication cohort. NA
   results due to difference in normalization method for investigation
   vs. replication cohorts. Thus, genes with NA can be safely removed.
-
-### Combine Data
+  \### Combine Data
 
 ``` r
 # metaData
@@ -342,7 +320,7 @@ MetaData <- pData(eset) %>%
   select(sample_id, status, BMI) %>% 
   mutate(samples = sample_id) 
 
-#expressionData
+#expressionData with 366 genes removed
 express <- na.omit(exprs(eset))
 
 toLongerMeta <- function(expset) {
@@ -389,7 +367,36 @@ table(pData(eset)$BMI, pData(eset)$status)
     ##   below30     53  14
     ##   over30       4   6
 
-# Setting up a design matrix and fit linear model
+### pivot data to longer format
+
+``` r
+dim(express)
+```
+
+    ## [1] 28730    77
+
+``` r
+toLonger <- function(expressionMatrix) {
+    expressionMatrix <- longExpressionMatrix <- expressionMatrix %>% 
+    as.data.frame() %>%
+    rownames_to_column("gene") %>%
+    pivot_longer(cols = !gene, 
+                 values_to = "Expression",
+                 names_to = "sample_id") 
+  return(expressionMatrix)
+}
+
+options(repr.plot.width = 30, repr.plot.height =2)
+
+toLonger(express) %>% 
+  ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(x = "sample", y = "Gene Expression") 
+```
+
+![](GSE41762_microarray_RNA_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+\# Setting up a design matrix and fit linear model
 
 ``` r
 modm <- model.matrix(~BMI*status, MetaData)
@@ -445,9 +452,9 @@ deGenesOb %>% kable()
 | 8098246 |  1.0475308 | 5.734678 |  4.609555 | 1.56e-05 | 0.0344319 | 2.686287 |
 
 ``` r
-dim(deGenesOb)
+length(deGenesOb$P.Value)
 ```
 
-    ## [1] 13  6
+    ## [1] 13
 
 ### refit model
