@@ -115,19 +115,25 @@ mean(mean_expression_complete$avg)
 
 # Does the gene with missing values consistently show up in certain samples? 
 names(which(colSums(is.na(expression))>0))
-
 length(names(which(colSums(is.na(expression))>0)))
 ```
-* As described in [GSE41762](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE41762)The genes that contain missing data were from the replication cohort. NA results due to difference in normalization method for investigation vs. replication cohorts. Thus, genes with NA can be safely removed.
+* The missing data are consistently found in the replication cohort due to different normalization methods, which captured variances differently. However, per assumption that the authors have made best possible efforts to ensure minimal batch between the two cohorts before merging the data, a decision was made to remove all genes that do not have consistent expression data across cohorts
+```{r}
+express <- exprs(eset) %>% 
+  as.data.frame() 
+#samples with missing values 
+names(colSums(is.na(express))>0)
+#missing values are consistently found in the replication cohort due to different normalization method, difference variance is captured in the two cohorts. Thus, removed all genes with missing values in the replication cohort. 
+express <- na.omit(express)
+```
 ### Combine Data
 ```{r}
 # metaData
+id <- colnames(express)[1:48]
 MetaData <- pData(eset) %>% 
   select(sample_id, status, BMI) %>% 
-  mutate(samples = sample_id) 
-
-#expressionData with 366 genes removed
-express <- na.omit(exprs(eset))
+  mutate(samples = sample_id) %>% 
+  filter(sample_id %in% id)
 
 toLongerMeta <- function(expset) {
     stopifnot(class(expset) == "ExpressionSet")
@@ -143,11 +149,14 @@ toLongerMeta <- function(expset) {
 
 joint <- toLongerMeta(eset)
 head(joint, 3) %>% kable()
+```
+#check if phenotype metadata sample id and expression column name matches
+```{r}
 identical(MetaData$sample_id, colnames(express))
 ```
-#Check samples in each category
+#Check samples in each category in sample 1 through 48
 ```{r}
-table(pData(eset)$BMI, pData(eset)$status)
+with(MetaData,table(BMI,status))
 ```
 ### pivot data to longer format  
 ```{r}
@@ -167,16 +176,13 @@ options(repr.plot.width = 30, repr.plot.height =2)
 toLonger(express) %>% 
   ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
   geom_boxplot() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),legend.position = "none") + 
   labs(x = "sample", y = "Gene Expression") 
-
-
 ```
 # Setting up a design matrix and fit linear model
 ```{r}
 modm <- model.matrix(~BMI*status, MetaData)
 lmFitEb <- eBayes(lmFit(express, modm))
-
 ```
 ### Identify genes that are differentially expressed in obese vs. nonobese in healthy samples
 ```{r}
@@ -218,12 +224,13 @@ deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05,
 
 ### Examine the effect of T2D only on DE 
 ```{r}
-modm <- model.matrix(~BMI, MetaData)
+modm <- model.matrix(~status, MetaData)
 lmFitEb <- eBayes(lmFit(express, modm))
 
-deGenesT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
+deGenesT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
+
 ```
-One DE gene was found in T2D vs. healthy individuals 
+19 DE genes were found in T2D vs. healthy individuals 
 
 ### Saving relevant data for aim 2 gene enrichment analysis
 

@@ -391,7 +391,7 @@ options(repr.plot.width = 30, repr.plot.height =2)
 toLonger(express) %>% 
   ggplot(aes(x=sample_id, y= Expression, color=sample_id)) +
   geom_boxplot() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),legend.position = "none") + 
   labs(x = "sample", y = "Gene Expression") 
 ```
 
@@ -469,17 +469,17 @@ deGenesOb <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05,
 ### Examine the effect of T2D only on DE
 
 ``` r
-modm <- model.matrix(~BMI, MetaData)
+modm <- model.matrix(~status, MetaData)
 lmFitEb <- eBayes(lmFit(express, modm))
 
-deGenesT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "BMIover30")
+deGenesT2d <- topTable(lmFitEb, number = Inf, adjust.method="BH", p.value = 0.05, coef= "statust2d")
 ```
 
-One DE gene was found in T2D vs. healthy individuals
+19 DE genes were found in T2D vs. healthy individuals
 
 ### Saving relevant data for aim 2 gene enrichment analysis
 
-- Data can be loaded into Aim 2 analysis using
-  readRDS(“ObvsNonObHealthy.RDS”)
-
 saveRDS(degT2dNonOb, file = “ObvsNonObHealthy.RDS”)
+
+- Result can be loaded into Aim 2 analysis with
+  `readRDS("ObvsNonObHealthy.RDS")`
